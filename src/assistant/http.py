@@ -16,11 +16,13 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from prometheus_client import make_asgi_app
 from pydantic import BaseModel, Field
 
 from assistant.config import router_from_env
 from assistant.engine import Assistant
 from assistant.library.memory import InMemoryLibrary
+from assistant.telemetry import configure_global_providers
 from assistant.tools.library_tools import library_tools
 
 
@@ -54,7 +56,11 @@ class ConfirmOut(BaseModel):
 
 
 def create_app() -> FastAPI:
+    configure_global_providers()
     app = FastAPI(title="Library assistant", version="0.1.0")
+    # Prometheus scrape endpoint (OTel metrics via the Prometheus reader); not
+    # part of the API contract.
+    app.mount("/metrics", make_asgi_app())
     # A demo API for local clients (Expo web, simulators): any origin, no credentials.
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
     # Each session gets its own demo library, so a demo (or a live test) always

@@ -60,12 +60,33 @@ make check                  # lint, strict types, tests, evals, proof the eval g
 | **Evals as a gate** | Golden conversations assert on *effects* (calls made, rows written), not just reply text; a known-bad model must fail them | [`evals/`](evals) · [ADR-0003](docs/adr/0003-evals-as-a-gate.md) |
 | **Deterministic CI** | A scripted model stands in for an LLM: free, repeatable, and gullible on purpose | [`llm/scripted.py`](src/assistant/llm/scripted.py) |
 
+## Observability
+
+OpenTelemetry throughout, named by the **GenAI semantic conventions** so any
+OTel backend reads it ([ADR-0004](docs/adr/0004-llm-observability.md)):
+
+| Signal | What it answers |
+|---|---|
+| `gen_ai.client.token.usage`, `gen_ai.client.operation.duration` (by model, tier) | What does each model cost us in tokens and time? |
+| `assistant.llm.cost.usd` (from a price table) | What are we spending, per model, per hour? |
+| `assistant.proposals{suspicious}`, `assistant.injection.flags`, `assistant.confirmations{suspicious}` | Is someone seeding instructions into our data? Did a person override a warning? |
+| `assistant.escalations`, `assistant.provider.fallbacks`, `assistant.turns{outcome}` | Is the cheap model coping? Is a provider degraded? Are turns hitting budgets? |
+| Traces: `invoke_agent` → `chat {model}` / `execute_tool {tool}` | What did this one turn actually do, and where did the time go? |
+
+`/metrics` serves Prometheus; set `OTEL_EXPORTER_OTLP_ENDPOINT` to send
+traces to Tempo, Jaeger or an APM. Six alerts ship with the service in
+[`observability/alerts.yaml`](observability/alerts.yaml) — suspicious-proposal
+bursts, a confirmed suspicious write (pages), budget stops, provider
+degradation, model latency, spend — each **unit-tested with `promtool`** to fire
+on its pattern and stay quiet just below it.
+
 ## The guards were tested by breaking them
 
 Each was disabled once, on purpose, to confirm the build turns red: writes
 executed without confirmation, tool output not marked untrusted, the
 injection detector switched off, the call budget ignored. All four were
-caught. The eval gate itself is proven on every run by `make evals-negative`.
+caught. So were the telemetry (a proposal no longer counted fails its test)
+and the alerts (loosening a threshold fails the promtool tests). The eval gate itself is proven on every run by `make evals-negative`.
 
 ## Deliberate simplifications
 

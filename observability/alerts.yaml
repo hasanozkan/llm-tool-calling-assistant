@@ -1,0 +1,64 @@
+# Alerts for the assistant, shipped with the service that emits the metrics.
+# Unit-tested with `promtool test rules observability/alerts.test.yaml`.
+groups:
+  - name: assistant-safety
+    rules:
+      # Several writes the user never asked for, in a short window: someone may
+      # be seeding instructions into data the assistant reads.
+      - alert: AssistantSuspiciousProposals
+        expr: sum(increase(assistant_proposals_total{assistant_suspicious="true"}[10m])) > 3
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value | humanize }} suspicious write proposals in 10 minutes"
+          runbook: "Check which tool outputs were flagged (assistant_injection_flags_total by gen_ai_tool_name) and the data source behind them."
+
+      # A suspicious proposal that a person then confirmed: the guard warned and
+      # was overridden. Rare by design, worth a look every time.
+      - alert: AssistantSuspiciousProposalConfirmed
+        expr: sum(increase(assistant_confirmations_total{assistant_suspicious="true"}[15m])) > 0
+        labels:
+          severity: page
+        annotations:
+          summary: "A write flagged as suspicious was confirmed"
+          runbook: "Find the session in traces (span execute_tool borrow_copy, assistant.tool.outcome=proposed) and review the action."
+
+  - name: assistant-health
+    rules:
+      # More than 10% of turns stopped by a budget: a model looping on tools, or
+      # a prompt that grew past its token budget.
+      - alert: AssistantBudgetStops
+        expr: |
+          sum(increase(assistant_turns_total{assistant_turn_outcome=~"call_budget|token_budget"}[15m]))
+            / sum(increase(assistant_turns_total[15m])) > 0.10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value | humanizePercentage }} of turns hit a budget"
+
+      - alert: AssistantProviderDegraded
+        expr: sum by (gen_ai_request_model) (increase(assistant_provider_fallbacks_total[10m])) > 5
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.gen_ai_request_model }} failed {{ $value | humanize }} times in 10 minutes; traffic is falling back"
+
+      - alert: AssistantModelSlow
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le, gen_ai_request_model) (rate(gen_ai_client_operation_duration_seconds_bucket[10m]))) > 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 latency of {{ $labels.gen_ai_request_model }} is {{ $value | humanizeDuration }}"
+
+  - name: assistant-cost
+    rules:
+      - alert: AssistantSpendHigh
+        expr: sum(increase(assistant_llm_cost_usd_total[1h])) > 5
+        labels:
+          severity: warning
+        annotations:
+          summary: "LLM spend is ${{ $value | printf \"%.2f\" }} in the last hour"

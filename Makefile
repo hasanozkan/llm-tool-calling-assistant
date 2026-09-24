@@ -1,4 +1,4 @@
-.PHONY: install run serve check lint types test evals evals-negative evals-live contracts contracts-update
+.PHONY: install run serve alerts check lint types test evals evals-negative evals-live contracts contracts-update
 
 install:
 	uv sync
@@ -13,10 +13,14 @@ serve:
 contracts:
 	uv run python scripts/generate_contracts.py --check
 
+# Alert rules ship with the service; each is unit-tested both ways (fires / stays quiet).
+alerts:
+	cd observability && promtool check rules alerts.yaml && promtool test rules alerts.test.yaml
+
 contracts-update:
 	uv run python scripts/generate_contracts.py
 
-check: lint types test evals evals-negative contracts
+check: lint types test evals evals-negative contracts alerts
 
 lint:
 	uv run ruff check . && uv run ruff format --check .

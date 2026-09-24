@@ -1,0 +1,99 @@
+# promtool unit tests: each alert fires on the pattern it is for, and stays
+# quiet just below it — a rule that has never been seen both ways is unproven.
+rule_files:
+  - alerts.yaml
+evaluation_interval: 1m
+
+tests:
+  - name: suspicious proposals — quiet at 2 in 10m, fires on a burst
+    interval: 1m
+    input_series:
+      - series: 'assistant_proposals_total{assistant_suspicious="true",gen_ai_tool_name="borrow_copy"}'
+        values: '0x10 1 2 3 4 5 6'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: AssistantSuspiciousProposals
+        exp_alerts: []
+      - eval_time: 16m
+        alertname: AssistantSuspiciousProposals
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "6 suspicious write proposals in 10 minutes"
+              runbook: "Check which tool outputs were flagged (assistant_injection_flags_total by gen_ai_tool_name) and the data source behind them."
+
+  - name: a confirmed suspicious proposal pages
+    interval: 1m
+    input_series:
+      - series: 'assistant_confirmations_total{assistant_suspicious="false",gen_ai_tool_name="borrow_copy",assistant_confirm_outcome="done"}'
+        values: '0 1 2 3 4 5'
+      - series: 'assistant_confirmations_total{assistant_suspicious="true",gen_ai_tool_name="borrow_copy",assistant_confirm_outcome="done"}'
+        values: '0 0 0 0 1 1'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: AssistantSuspiciousProposalConfirmed
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: AssistantSuspiciousProposalConfirmed
+        exp_alerts:
+          - exp_labels: { severity: page }
+            exp_annotations:
+              summary: "A write flagged as suspicious was confirmed"
+              runbook: "Find the session in traces (span execute_tool borrow_copy, assistant.tool.outcome=proposed) and review the action."
+
+  - name: budget stops — 20% fires after 5m, 5% does not
+    interval: 1m
+    input_series:
+      - series: 'assistant_turns_total{assistant_turn_outcome="replied"}'
+        values: '0+8x30'
+      - series: 'assistant_turns_total{assistant_turn_outcome="call_budget"}'
+        values: '0+2x30'
+      - series: 'assistant_turns_total{assistant_turn_outcome="token_budget"}'
+        values: '0+0x30'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: AssistantBudgetStops
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations: { summary: "20% of turns hit a budget" }
+  - name: budget stops — quiet at 5%
+    interval: 1m
+    input_series:
+      - series: 'assistant_turns_total{assistant_turn_outcome="replied"}'
+        values: '0+19x30'
+      - series: 'assistant_turns_total{assistant_turn_outcome="call_budget"}'
+        values: '0+1x30'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: AssistantBudgetStops
+        exp_alerts: []
+
+  - name: provider degraded — per model
+    interval: 1m
+    input_series:
+      - series: 'assistant_provider_fallbacks_total{gen_ai_request_model="big-model",gen_ai_system="vendor-a"}'
+        values: '0+1x15'
+      - series: 'assistant_provider_fallbacks_total{gen_ai_request_model="small-model",gen_ai_system="vendor-b"}'
+        values: '0+0x15'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: AssistantProviderDegraded
+        exp_alerts:
+          - exp_labels: { severity: warning, gen_ai_request_model: big-model }
+            exp_annotations:
+              summary: "big-model failed 10 times in 10 minutes; traffic is falling back"
+
+  - name: spend — fires above $5/h
+    interval: 5m
+    input_series:
+      - series: 'assistant_llm_cost_usd_total{gen_ai_request_model="big-model"}'
+        values: '0+0.6x24'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: AssistantSpendHigh
+        exp_alerts: []
+      - eval_time: 90m
+        alertname: AssistantSpendHigh
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations: { summary: "LLM spend is $7.20 in the last hour" }
