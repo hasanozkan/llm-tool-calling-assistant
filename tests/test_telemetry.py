@@ -153,9 +153,13 @@ def test_every_metric_in_the_telemetry_contract_is_exposed_with_its_attributes()
     default_telemetry().escalations.add(0)
     default_telemetry().fallbacks.add(0, {"gen_ai.system": "x", "gen_ai.request.model": "y"})
     seen: dict[str, set[str]] = {}
+    les: dict[str, list[float]] = {}
     for fam in text_string_to_metric_families(c.get("/metrics/").text):
         seen.setdefault(fam.name, set()).update(k for s in fam.samples for k in s.labels if k != "le")
+        les[fam.name] = sorted({float(s.labels["le"]) for s in fam.samples if s.labels.get("le") not in (None, "+Inf")})
     for m in spec["metrics"]:
         name = m["name"].replace(".", "_") + ("_seconds" if m.get("unit") == "s" else "")
         assert name in seen, f"{m['name']} missing as {name}"
         assert {a.replace(".", "_") for a in m["attributes"]} <= seen[name], name
+        if "buckets" in m:
+            assert les[name] == sorted(float(b) for b in m["buckets"]), f"{name} buckets"

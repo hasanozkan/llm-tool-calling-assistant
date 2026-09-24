@@ -21,6 +21,12 @@ from opentelemetry.trace import Tracer
 
 AGENT_NAME = "library-assistant"
 
+# The GenAI semantic conventions' advised boundaries (observability/telemetry.yaml).
+# The SDK's defaults are sized for milliseconds: seconds would all land in the
+# first bucket and every percentile would be a guess.
+TOKEN_BUCKETS = [1, 4, 16, 64, 256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216, 67108864]
+DURATION_BUCKETS = [0.01, 0.02, 0.04, 0.08, 0.16, 0.32, 0.64, 1.28, 2.56, 5.12, 10.24, 20.48, 40.96, 81.92]
+
 # USD per million tokens, (input, output). Configure real prices with
 # ASSISTANT_PRICES='{"<model-id>": [3.0, 15.0]}'; unknown models record no cost
 # rather than a wrong one.
@@ -43,10 +49,16 @@ class Telemetry:
         m = self.meter
         # GenAI semantic conventions
         self.token_usage = m.create_histogram(
-            "gen_ai.client.token.usage", unit="{token}", description="Tokens per model call, by type"
+            "gen_ai.client.token.usage",
+            unit="{token}",
+            description="Tokens per model call, by type",
+            explicit_bucket_boundaries_advisory=TOKEN_BUCKETS,
         )
         self.operation_duration = m.create_histogram(
-            "gen_ai.client.operation.duration", unit="s", description="Model call duration"
+            "gen_ai.client.operation.duration",
+            unit="s",
+            description="Model call duration",
+            explicit_bucket_boundaries_advisory=DURATION_BUCKETS,
         )
         # agent behaviour
         self.cost = m.create_counter(
