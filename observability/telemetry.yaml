@@ -1,0 +1,36 @@
+# The assistant's telemetry contract (ADR-0004): what it emits, by name, type
+# and attributes. Dashboards and alerts are written against this file;
+# `tests/test_telemetry.py` holds the service to it.
+version: 1
+metrics:
+  - name: gen_ai.client.token.usage
+    type: histogram
+    attributes: [gen_ai.system, gen_ai.request.model, gen_ai.token.type, assistant.tier]
+  - name: gen_ai.client.operation.duration
+    type: histogram
+    unit: s
+    attributes: [gen_ai.system, gen_ai.request.model, gen_ai.operation.name, assistant.tier]
+  - name: assistant.llm.cost.usd
+    type: counter
+    attributes: [gen_ai.system, gen_ai.request.model, assistant.tier]
+  - name: assistant.tool.calls
+    type: counter
+    attributes: [gen_ai.tool.name, assistant.tool.outcome]
+  - name: assistant.proposals
+    type: counter
+    attributes: [gen_ai.tool.name, assistant.suspicious]
+  - name: assistant.confirmations
+    type: counter
+    attributes: [gen_ai.tool.name, assistant.suspicious, assistant.confirm.outcome]
+  - name: assistant.injection.flags
+    type: counter
+    attributes: [gen_ai.tool.name]
+  - name: assistant.escalations
+    type: counter
+    attributes: []
+  - name: assistant.provider.fallbacks
+    type: counter
+    attributes: [gen_ai.system, gen_ai.request.model]
+  - name: assistant.turns
+    type: counter
+    attributes: [assistant.turn.outcome]

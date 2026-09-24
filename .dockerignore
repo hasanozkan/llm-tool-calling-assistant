@@ -1,0 +1,8 @@
+.venv
+.git
+.github
+tests
+docs
+evals
+scripts
+contracts

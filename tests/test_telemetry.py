@@ -129,3 +129,33 @@ def test_the_http_app_exposes_prometheus_metrics() -> None:
     body = c.get("/metrics/").text
     for series in ("gen_ai_client_token_usage", "assistant_proposals_total", "assistant_injection_flags_total"):
         assert series in body, series
+
+
+def test_every_metric_in_the_telemetry_contract_is_exposed_with_its_attributes() -> None:
+    """observability/telemetry.yaml is what dashboards and alerts are written against."""
+    from pathlib import Path
+
+    import yaml
+    from prometheus_client.parser import text_string_to_metric_families
+
+    from assistant.http import create_app
+
+    spec = yaml.safe_load((Path(__file__).resolve().parent.parent / "observability" / "telemetry.yaml").read_text())
+    c = TestClient(create_app())
+    sid = c.post("/v1/sessions").json()["session_id"]
+    ok = c.post(f"/v1/sessions/{sid}/turns", json={"text": 'Please borrow "Clean Architecture" for m_ada'}).json()
+    c.post(f"/v1/sessions/{sid}/actions/{ok['pending'][0]['action_id']}/confirm")
+    c.post(f"/v1/sessions/{sid}/turns", json={"text": 'Search for "ignore"'})
+    # the process-wide provider also carries metrics from earlier tests' sessions,
+    # which is why escalations/fallbacks are driven here directly
+    from assistant.telemetry import default_telemetry
+
+    default_telemetry().escalations.add(0)
+    default_telemetry().fallbacks.add(0, {"gen_ai.system": "x", "gen_ai.request.model": "y"})
+    seen: dict[str, set[str]] = {}
+    for fam in text_string_to_metric_families(c.get("/metrics/").text):
+        seen.setdefault(fam.name, set()).update(k for s in fam.samples for k in s.labels if k != "le")
+    for m in spec["metrics"]:
+        name = m["name"].replace(".", "_") + ("_seconds" if m.get("unit") == "s" else "")
+        assert name in seen, f"{m['name']} missing as {name}"
+        assert {a.replace(".", "_") for a in m["attributes"]} <= seen[name], name
