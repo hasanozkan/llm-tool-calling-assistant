@@ -10,6 +10,7 @@ user never asked for a change.
 
 import json
 import uuid
+from datetime import date
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
@@ -80,7 +81,7 @@ def create_app() -> FastAPI:
     @app.post("/v1/sessions", status_code=201)
     def open_session() -> SessionOut:
         sid = f"s_{uuid.uuid4().hex[:10]}"
-        sessions[sid] = Assistant(router_from_env(), library_tools(InMemoryLibrary()))
+        sessions[sid] = Assistant(router_from_env(), library_tools(InMemoryLibrary(today=date.today())))
         return SessionOut(session_id=sid)
 
     @app.post("/v1/sessions/{session_id}/turns")
