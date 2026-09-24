@@ -56,7 +56,8 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Library assistant", version="0.1.0")
     # A demo API for local clients (Expo web, simulators): any origin, no credentials.
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-    library = InMemoryLibrary()
+    # Each session gets its own demo library, so a demo (or a live test) always
+    # starts from the same shelf instead of whatever the previous visitor borrowed.
     sessions: dict[str, Assistant] = {}
 
     @app.exception_handler(HTTPException)
@@ -79,7 +80,7 @@ def create_app() -> FastAPI:
     @app.post("/v1/sessions", status_code=201)
     def open_session() -> SessionOut:
         sid = f"s_{uuid.uuid4().hex[:10]}"
-        sessions[sid] = Assistant(router_from_env(), library_tools(library))
+        sessions[sid] = Assistant(router_from_env(), library_tools(InMemoryLibrary()))
         return SessionOut(session_id=sid)
 
     @app.post("/v1/sessions/{session_id}/turns")

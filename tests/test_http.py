@@ -32,3 +32,12 @@ def test_unknown_session_is_a_problem_document() -> None:
     r = TestClient(create_app()).post("/v1/sessions/s_nope/turns", json={"text": "hi"})
     assert r.status_code == 404
     assert r.headers["content-type"].startswith("application/problem+json")
+
+
+def test_every_session_starts_from_the_same_shelf() -> None:
+    c = TestClient(create_app())
+    for _ in range(2):
+        sid = _session(c)
+        turn = c.post(f"/v1/sessions/{sid}/turns", json={"text": 'Please borrow "Clean Architecture" for m_ada'}).json()
+        assert turn["pending"], turn["reply"]
+        c.post(f"/v1/sessions/{sid}/actions/{turn['pending'][0]['action_id']}/confirm")
