@@ -1,4 +1,4 @@
-.PHONY: install run check lint types test evals evals-negative evals-live
+.PHONY: install run serve check lint types test evals evals-negative evals-live contracts contracts-update
 
 install:
 	uv sync
@@ -6,7 +6,17 @@ install:
 run:
 	uv run python -m assistant
 
-check: lint types test evals evals-negative
+# The HTTP API mobile/web clients use (see contracts/openapi.json).
+serve:
+	uv run uvicorn assistant.http:app --reload --port 8001
+
+contracts:
+	uv run python scripts/generate_contracts.py --check
+
+contracts-update:
+	uv run python scripts/generate_contracts.py
+
+check: lint types test evals evals-negative contracts
 
 lint:
 	uv run ruff check . && uv run ruff format --check .

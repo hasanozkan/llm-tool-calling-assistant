@@ -44,7 +44,8 @@ make install
 make run                    # scripted model: no key needed
 ASSISTANT_PROVIDER=anthropic ASSISTANT_MODEL=<model-id> ANTHROPIC_API_KEY=... make run
 ASSISTANT_PROVIDER=openai ASSISTANT_MODEL=<model-id> OPENAI_API_KEY=... make run   # or any OpenAI-compatible OPENAI_BASE_URL
-make check                  # lint, strict types, tests, evals, and proof the eval gate bites
+make serve                  # HTTP API on :8001 — sessions, turns, confirm (contracts/openapi.json)
+make check                  # lint, strict types, tests, evals, proof the eval gate bites, contract snapshot
 ```
 
 ## What it demonstrates
