@@ -75,7 +75,7 @@ REPL instead of a chat UI. A regex injection detector, which is fine
 
 ---
 
-Part of a set: [spec-driven-ddd-sample](https://github.com/hasanozkan/spec-driven-ddd-sample)
+Part of a set: [spec-driven-ddd-python](https://github.com/hasanozkan/spec-driven-ddd-python)
 (the domain side) · [ai-native-engineering](https://github.com/hasanozkan/ai-native-engineering)
 (how agents work inside a team). By [Hasan Özkan](https://github.com/hasanozkan) ·
 [LinkedIn](https://www.linkedin.com/in/hasanozkan/)
